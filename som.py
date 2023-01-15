@@ -4,11 +4,7 @@
 A simple implementation of self-organizing maps.
 
 To do:
-    - experiment with neighbor functions
-      - plot the neighbor functions for various distances
     - try other data sets
-    - why do values tend to be nearly all along the edges in the
-      reduced space?  Is this because of neighbor_fun()?
 
 @author: Glenn Bruns
 """
@@ -30,7 +26,7 @@ def learning_rate(s, initial=0.1, k=100):
     return initial * (.1**(s/k))
 
 
-def neighbor_fun_alt(x1, x2, s, c=0.5):
+def neighbor_fun(x1, x2, s, c1=0.1, c2=0.5):
     """ Return a value between 0 and 1 reflecting the degree
     to which vectors x1 and x2 are neighbors. This function has
     the following properties:
@@ -39,22 +35,9 @@ def neighbor_fun_alt(x1, x2, s, c=0.5):
         - neighbor_fun(x1, x2, s) >= neighbor_fun(x1, x2, s+1)
     """
     
-    # d is the L1 distance between x1 and x2
-    d = np.sum(np.abs(np.array(x1) - np.array(x2)))
-    return 1 / np.exp(c * np.log10(s+2) * d)
-
-
-def neighbor_fun(x1, x2, s, c=0.15):
-    """ Return a value between 0 and 1 reflecting the degree
-    to which vectors x1 and x2 are neighbors. This function has
-    the following properties:
-        - 0 <= neighbor_fun(x1, x2, s) <= 1
-        - neighbor_fun(x, x, s) = 1
-        - neighbor_fun(x1, x2, s) >= neighbor_fun(x1, x2, s+1)
-    """
-    
-    d = np.sum(np.abs(np.array(x1) - np.array(x2)))
-    return np.exp(-(d**2)*c*np.sqrt(s+1))
+    # compute L1 (manhattan) distance between points
+    d = np.linalg.norm(np.array(x1) - np.array(x2), ord=1)
+    return np.exp(-(d**2)*c1*((s+1)**c2))
     
 
 class SOM:
@@ -136,18 +119,43 @@ class SOM:
 
 # generic plotting of output
 def plot_grid(bmus, hue=None):
+
+    bins = [ int(bmus[:,i].max() - bmus[:,i].min() + 1) for i in [0,1] ]
     plt.figure(figsize=(3,3))
-    df1 = pd.DataFrame(bmus)
-    df1.columns = ['x1', 'x2']
+    df1 = pd.DataFrame(bmus, columns = ['x1', 'x2'])
     if hue is None:
-        sns.displot(df1, x='x1', y='x2');    
+        sns.displot(df1, x='x1', y='x2', bins=bins); 
     else:
-        sns.displot(df1, x='x1', y='x2', hue=hue);      
+        sns.displot(df1, x='x1', y='x2', hue=hue, bins=bins)
+        
+    xwidth, ywidth = [ (nbins-1)/nbins for nbins in bins ]
+    plt.xticks([ xwidth * (i+0.5) for i in range(bins[0]) ], labels=range(bins[0]))
+    plt.yticks([ xwidth * (i+0.5) for i in range(bins[1]) ], labels=range(bins[1]))
+    
+    plt.title('Frequency plot');
         
 # =============================================================================
 #        
 # tests and examples
 #
+# =============================================================================
+
+# visualize neighborhood function
+distances = np.arange(0, 4, 0.1)
+for s in [0,10,100,500,1000]:
+    ys = []
+    for d in distances:
+        x1 = np.array([0, 0])
+        x2 = np.array([0, d])
+        ys.append(neighbor_fun(x1, x2, s, c1=0.1, c2=0.5))
+    plt.plot(distances, ys, label=str(s))
+plt.title('Neighborhood function value by distances')
+plt.xlabel('distance')
+plt.ylabel('neighborhood value')
+plt.legend(title='number of steps');
+
+# =============================================================================
+# Iris example
 # =============================================================================
 
 # plot irises in lower-dimensional space
@@ -159,7 +167,6 @@ def plot_iris(bmus, species):
     for i in range(bmus.shape[0]):
         bmu = bmus[i]
         plt.plot(bmu[0], bmu[1], species_icon[species[i]], alpha=0.2)
-
 
 # load the iris data
 df = sns.load_dataset('iris')
@@ -200,7 +207,7 @@ plot_grid(bmus, df['species'])
 # plotting without species
 plot_grid(bmus)
 
-# compute quantization error
+# compute quantization error by step for Iris data
 errs = []
 all_nsteps = list(range(10, 410, 20))
 for nsteps in all_nsteps:
@@ -211,19 +218,10 @@ for nsteps in all_nsteps:
     
 plt.plot(all_nsteps, errs)
 plt.title('Quantization error by number of training steps')
-plt.ylabel('Quantization error')
-plt.xlabel('Number of steps')
+plt.ylabel('quantization error')
+plt.xlabel('number of steps')
 
-# compare neighbor functions
-distances = np.arange(0, 4, 0.1)
-for s in [0,10,100,500,1000]:
-    ys = []
-    for d in distances:
-        x1 = np.array([0, 0])
-        x2 = np.array([0, d])
-        ys.append(neighbor_fun(x1, x2, s, c=0.15))
-    plt.plot(distances, ys, label=str(s))
-plt.legend();
+
     
     
 
